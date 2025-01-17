@@ -7,17 +7,27 @@
 using namespace std;
 using namespace cv;
 
+/* fit for img_03 */
 int thresh = 17; // [0, 255] -> 8bit
 int sizeGaussian = 17; // (n * 2 + 1) 3, 5, 7, 9, ..., 17 -> 3bit
-int offset = 7; // [0, 7] -> 3bit
-int gradMode = 1; // 1bit
+int offset = 9; // [0, 7] -> 3bit
+int gradMode = 0; // 1bit
 int highThresh = 127; // [0, 255] -> 8bit (low impact -> ?)
 int morphMode = 0; // [0, 1] -> 1bit
 int morphTimes = 1; // [0, 3] -> 2bit
 int aspectRatio = 1; // [0, 10] -> 4bit
 int contPixNums = 7; // [0, 7] -> 3bit
 
-
+/* fit for img_04 */
+//int thresh = 17; // [0, 255] -> 8bit
+//int sizeGaussian = 17; // (n * 2 + 1) 3, 5, 7, 9, ..., 17 -> 3bit
+//int offset = 7; // [0, 7] -> 3bit
+//int gradMode = 1; // 1bit
+//int highThresh = 127; // [0, 255] -> 8bit (low impact -> ?)
+//int morphMode = 0; // [0, 1] -> 1bit
+//int morphTimes = 1; // [0, 3] -> 2bit
+//int aspectRatio = 1; // [0, 10] -> 4bit
+//int contPixNums = 7; // [0, 7] -> 3bit
 
 void imgShow(const string& name, const Mat& img) {
     imshow(name, img);
@@ -43,26 +53,12 @@ void gradCal(Mat& srcImg, Mat& dstImg, int mode) {
 vector<Vec3f> circleDetect(Mat img) {
     Mat blurred;
     GaussianBlur(img, blurred, Size(sizeGaussian, sizeGaussian), 0, 0);
+
+    // imgShow("GauBlur in circleDetect", blurred);
+
     vector<Vec3f> circles;
     HoughCircles(blurred, circles, HOUGH_GRADIENT, 1, blurred.rows / 8, 200, 100, 0, 0);
     return circles;
-}
-
-void morph(Mat& img, int mode, int times) {
-    Mat kernel = getStructuringElement(MORPH_ELLIPSE, Size(3, 3));
-    if (mode == 0) {
-        // dilate opt
-        for (int i = 0; i < times; i++) {
-            dilate(img, img, kernel);
-        }
-    }
-    else if (mode == 1) {
-        // closing opt
-        for (int i = 0; i < times; i++) {
-            dilate(img, img, kernel);
-            erode(img, img, kernel);
-        }
-    }
 }
 
 int comDistance(int y, int x, Vec3f circle) {
@@ -82,7 +78,7 @@ int comDistance(int y, int x, Vec3f circle) {
 }
 
 int main(void) {
-    Mat oriImg = imread("./imgs_1220_v2/input/oriImg_03.png", IMREAD_GRAYSCALE);
+    Mat oriImg = imread("./imgs_1220_v2/input/oriImg_04.png", IMREAD_GRAYSCALE);
     // imgShow("res", oriImg);
 
     Mat edges_s1;
@@ -94,6 +90,7 @@ int main(void) {
     // imgShow("res", biImg);
 
     vector<Vec3f> circles = circleDetect(biImg); // GaussianSize
+
     if (circles.size() != 0) { // stat-03
         for (int y = 0; y < biImg.rows; y++) {
             for (int x = 0; x < biImg.cols; x++) {
@@ -111,16 +108,18 @@ int main(void) {
     }
     // imgShow("test", biImg);
 
-    Mat edges_s2;
-    gradCal(biImg, edges_s2, gradMode);
-    // imgShow("test", edges_s2);
-
-    morph(edges_s2, morphMode, morphTimes);
-    // imgShow("test", edges_s2);
+    /* «: Testing Part */
+    Mat blurImg_mask;
+    medianBlur(biImg, blurImg_mask, 3);
+    // «: For img-04
+    Mat kernel = getStructuringElement(MORPH_ELLIPSE, Size(5, 5));
+    erode(blurImg_mask, blurImg_mask, kernel);
+    erode(blurImg_mask, blurImg_mask, kernel);
+    imgShow("test", blurImg_mask);
 
     vector<vector<Point>> contours;
-    findContours(edges_s2, contours, RETR_LIST, CHAIN_APPROX_SIMPLE);
-    Mat mask = Mat::zeros(edges_s2.size(), CV_8UC1);
+    findContours(blurImg_mask, contours, RETR_LIST, CHAIN_APPROX_SIMPLE);
+    Mat mask = Mat::zeros(blurImg_mask.size(), CV_8UC1);
     for (const auto& contour : contours) {
         Rect bounding_box = boundingRect(contour);
         double aspect_ratio = static_cast<double>(bounding_box.width) / bounding_box.height;
@@ -128,9 +127,7 @@ int main(void) {
             drawContours(mask, vector<vector<Point>>{contour}, -1, Scalar(255), -1);
         }
     }
-    morph(mask, 0, 1);
-    // imgShow("test", mask);
-
+    imgShow("test", mask);
     if (circles.size() != 0) {
         for (int y = 0; y < biImg.rows; y++) {
             for (int x = 0; x < biImg.cols; x++) {
